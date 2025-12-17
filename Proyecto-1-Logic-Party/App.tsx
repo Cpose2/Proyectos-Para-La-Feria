@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import PlayerSetup from './components/PlayerSetup';
 import Board from './components/Board';
 import Dice from './components/Dice';
@@ -6,7 +6,8 @@ import ChallengeModal from './components/ChallengeModal';
 import { GamePhase, GameState, Player, TileType, Challenge } from './types';
 import { INITIAL_BOARD, BOARD_SIZE } from './constants';
 import { generateChallenge } from './services/geminiService';
-import { Trophy, History, Coins, Star, Activity } from 'lucide-react';
+import { Trophy, History, Coins, Star, Activity, Volume2, VolumeX } from 'lucide-react';
+import { playSound, setSoundMuted } from './utils/soundEffects';
 
 const App: React.FC = () => {
   const [gameState, setGameState] = useState<GameState>({
@@ -24,6 +25,40 @@ const App: React.FC = () => {
 
   const [isRolling, setIsRolling] = useState(false);
   const [isLoadingChallenge, setIsLoadingChallenge] = useState(false);
+  
+  // Audio state
+  const [isMuted, setIsMuted] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Initialize Music
+  useEffect(() => {
+    // URL for a playful, "Mario Party" style board game loop
+    // Using 'Fun and Games' style track
+    audioRef.current = new Audio('https://assets.mixkit.co/music/preview/mixkit-happy-times-158.mp3');
+    audioRef.current.loop = true;
+    audioRef.current.volume = 0.2; // 20% volume for better background blend
+
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+    };
+  }, []);
+
+  const toggleMusic = () => {
+    const newMuted = !isMuted;
+    setIsMuted(newMuted);
+    setSoundMuted(newMuted); // Sync SFX mute state
+
+    if (!audioRef.current) return;
+    
+    if (!newMuted) {
+      audioRef.current.play().catch(e => console.log("Audio play failed:", e));
+    } else {
+      audioRef.current.pause();
+    }
+  };
 
   // Helper to add log messages
   const logMessage = (msg: string) => {
@@ -41,14 +76,28 @@ const App: React.FC = () => {
       phase: GamePhase.ROLL_DICE,
       messages: ["¡El juego ha comenzado!"]
     }));
+
+    playSound('turn');
+
+    // Start music on user interaction (Start Game)
+    if (audioRef.current && !isMuted) {
+        audioRef.current.play().catch(e => console.log("Autoplay prevented:", e));
+    }
   };
 
   const rollDice = () => {
     if (gameState.phase !== GamePhase.ROLL_DICE) return;
 
     setIsRolling(true);
+    
+    // Simulate roll sound effect loop
+    const rollSoundInterval = setInterval(() => {
+      playSound('dice');
+    }, 150);
+
     // Simulate roll duration
     setTimeout(() => {
+      clearInterval(rollSoundInterval);
       const roll = Math.floor(Math.random() * 6) + 1;
       setIsRolling(false);
       setGameState(prev => ({
@@ -66,6 +115,8 @@ const App: React.FC = () => {
     
     const moveInterval = setInterval(() => {
       currentSteps++;
+      playSound('step'); // Step sound
+      
       setGameState(prev => {
         const players = [...prev.players];
         const player = players[prev.currentPlayerIndex];
@@ -86,6 +137,7 @@ const App: React.FC = () => {
   const handleTileEvent = async () => {
     // Wait a moment after landing
     await new Promise(r => setTimeout(r, 500));
+    playSound('pop');
 
     const currentPlayer = gameState.players[gameState.currentPlayerIndex];
     const tile = gameState.board[currentPlayer.position];
@@ -166,11 +218,20 @@ const App: React.FC = () => {
             if (b.stars !== a.stars) return b.stars - a.stars;
             return b.coins - a.coins;
         });
+        
+        // Play Win Sound
+        setTimeout(() => playSound('win'), 500);
+
         return {
           ...prev,
           phase: GamePhase.GAME_OVER,
           winner: sortedPlayers[0]
         };
+      }
+      
+      // Play Turn Change Sound
+      if (nextPhase === GamePhase.ROLL_DICE) {
+          setTimeout(() => playSound('turn'), 500);
       }
 
       return {
@@ -241,6 +302,13 @@ const App: React.FC = () => {
             <span className="bg-gray-100 px-3 py-1 rounded-full text-sm font-medium text-gray-600">
                 Turno {gameState.turnCount} / {gameState.maxTurns}
             </span>
+            <button 
+                onClick={toggleMusic}
+                className="ml-2 p-2 rounded-full hover:bg-gray-100 text-indigo-600 transition-colors"
+                title={isMuted ? "Activar Música" : "Silenciar Música"}
+            >
+                {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+            </button>
         </div>
         
         <div className="flex gap-4 overflow-x-auto pb-2 sm:pb-0">
