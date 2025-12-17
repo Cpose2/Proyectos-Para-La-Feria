@@ -1,0 +1,5 @@
+{
+  "name": "Simulador PC Interno",
+  "description": "Una aplicación interactiva para explorar los componentes de una PC y simular fallos comunes como sobrecalentamiento o falta de RAM.",
+  "requestFramePermissions": []
+}
